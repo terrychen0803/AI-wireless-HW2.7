@@ -77,16 +77,6 @@ This will:
 - run both CP and no-CP experiments
 - save the figure and numerical results
 
-### Quick test run
-
-If you want to test the program more quickly, reduce the training size and number of epochs:
-
-```bash
-python exercise_2_7_channel_estimation.py --epochs 5 --train-samples 2000 --test-samples 1000
-```
-
----
-
 ## Output
 
 After execution, the script creates an output folder:
@@ -233,35 +223,3 @@ If the reproduced curve is noisy or not close enough to the reference figure, tr
 
 ---
 
-## Notes
-
-1. This implementation uses a **synthetic multipath channel model**, not a pre-generated dataset.
-2. Because the DNN is trained separately for each SNR, the full experiment may take some time.
-3. If a GPU is available, using `--device cuda` can significantly speed up training.
-4. The results may vary slightly across runs due to randomness in data generation and neural network training.
-
----
-
-## Example Workflow
-
-1. Run a quick test to verify that the script works:
-
-```bash
-python exercise_2_7_channel_estimation.py --epochs 3 --train-samples 1000 --test-samples 500
-```
-
-2. Run the full experiment:
-
-```bash
-python exercise_2_7_channel_estimation.py --epochs 30 --train-samples 12000 --test-samples 4000
-```
-
-3. Open:
-
-```text
-results_ex2_7/figure_2_9_reproduction.png
-```
-
-4. Use the generated figure and `results.json` for your report.
-
----
