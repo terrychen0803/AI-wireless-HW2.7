@@ -1,225 +1,480 @@
-# Exercise 2.7 — SISO-OFDM Channel Estimation
+# Exercise 2.7 — Data-Driven SISO-OFDM Channel Estimation
 
-This project is a **single-file Python implementation** for reproducing the main experiment in **Exercise 2.7**: comparing **DNN-based** and **LMMSE** channel estimators in a **SISO-OFDM** system, under both **with-CP** and **without-CP** settings.
+This repository reproduces the SISO-OFDM channel estimation experiment in **Section 2.3.1** of the course/book materials on *Wireless Communications and Machine Learning*. The goal is to compare a **DNN-based channel estimator** and a **traditional LMMSE estimator** under two settings:
 
-The script evaluates channel estimation performance in terms of **MSE** for SNR values from **5 dB to 40 dB**.
+- **With cyclic prefix (CP)**
+- **Without cyclic prefix (CP-free)**
 
----
+The implemented OFDM system uses:
 
-## File
-
-- `exercise_2_7_channel_estimation.py`
-
-This is a self-contained script that includes:
-- OFDM signal generation
-- QPSK pilot generation
-- 64-QAM data generation
-- Multipath channel simulation
-- CP / no-CP transmission modeling
-- LMMSE channel estimation
-- DNN-based channel estimation
-- MSE evaluation
-- Figure plotting and result export
-
----
-
-## Experiment Overview
-
-The script simulates the following system:
-
-- **SISO-OFDM**
 - **64 subcarriers**
-- **First OFDM symbol:** 64 QPSK pilot symbols
-- **Second OFDM symbol:** 64-QAM data symbols
-- **Channel:** synthetic Rayleigh multipath fading channel
-- **Metric:** Mean Squared Error (MSE)
-- **SNR range:** 5, 10, 15, ..., 40 dB
+- **1st OFDM symbol:** 64 QPSK pilot symbols
+- **2nd OFDM symbol:** 64-QAM data symbols
+- **SNR sweep:** 5 dB to 40 dB in 5 dB steps
 
-Two channel estimation methods are compared:
-
-1. **DNN-based channel estimation**
-2. **LMMSE channel estimation**
-
-Each method is tested in two scenarios:
-
-- **With CP**
-- **Without CP**
-
-The **without-CP** case is used to demonstrate the effect of **inter-symbol interference (ISI)**.
+The repository includes training, evaluation, and plotting scripts, along with saved model checkpoints and example result figures.
 
 ---
 
-## Requirements
+## 1. Project Objectives
 
-Install the required Python packages before running the script.
+This project focuses on the following tasks:
 
-```bash
-pip install numpy scipy matplotlib torch
-```
-
-Recommended Python version:
-
-- Python 3.9 or later
+1. Implement a **DNN-based channel estimator** for SISO-OFDM.
+2. Implement a **traditional LMMSE channel estimator**.
+3. Compare their mean square error (MSE) performance across different SNR values.
+4. Investigate the effect of removing CP, which introduces **inter-symbol interference (ISI)** and **inter-carrier interference (ICI)**.
+5. Reproduce the trend of the reference figure in which:
+   - with CP, DNN and LMMSE achieve similar performance;
+   - without CP, DNN remains relatively robust while LMMSE degrades due to model mismatch.
 
 ---
 
-## How to Run
-
-### Default run
-
-```bash
-python exercise_2_7_channel_estimation.py
-```
-
-This will:
-- train a DNN estimator for each SNR
-- evaluate DNN and LMMSE
-- run both CP and no-CP experiments
-- save the figure and numerical results
-
-## Output
-
-After execution, the script creates an output folder:
+## 2. Repository Structure
 
 ```text
-results_ex2_7/
+exercise_2_7/
+├── main.py                         # Main entry point for training/testing
+├── plot_results.py                 # Plot MSE curves from saved .mat files
+├── README.md                       # Project description
+├── figure_2_9_reproduced.png       # Example result plot
+├── MSE_dnn_4QAM.mat                # DNN result (with CP)
+├── MSE_dnn_4QAM_CP_FREE.mat        # DNN result (without CP)
+├── MSE_mmse_4QAM.mat               # LMMSE result (with CP)
+├── MSE_mmse_4QAM_CP_FREE.mat       # LMMSE result (without CP)
+├── dnn_ce/                         # Saved DNN checkpoints (.npz)
+└── tools/
+    ├── __init__.py
+    ├── networks.py                 # DNN model definition and training
+    ├── raputil.py                  # OFDM simulation, LS/MMSE estimation, test utilities
+    ├── train.py                    # Save/load trainable variables
+    ├── shrinkage.py                # Reserved from original repo structure
+    ├── problems.py                 # Reserved from original repo structure
+    └── Pilot_64_mu2.txt            # Saved pilot sequence
 ```
-
-Inside this folder, the following files are generated:
-
-- `figure_2_9_reproduction.png`  
-  Plot of MSE vs. SNR for all four cases:
-  - DNN with CP
-  - LMMSE with CP
-  - DNN without CP
-  - LMMSE without CP
-
-- `results.json`  
-  Stores the simulation configuration and numerical MSE results.
 
 ---
 
-## Main Parameters
+## 3. Environment Setup
 
-The script supports the following command-line arguments:
+### 3.1 Recommended Environment
 
-| Argument | Description | Default |
-|---|---|---:|
-| `--train-samples` | Number of generated training samples per SNR | `12000` |
-| `--test-samples` | Number of generated test samples per SNR | `4000` |
-| `--batch-size` | Batch size for training and evaluation | `256` |
-| `--epochs` | Training epochs for the DNN | `30` |
-| `--lr` | Learning rate | `1e-3` |
-| `--num-taps` | Number of channel taps | `8` |
-| `--pdp-decay` | Exponential power delay profile decay factor | `0.45` |
-| `--seed` | Random seed | `7` |
-| `--output-dir` | Output directory | `results_ex2_7` |
-| `--device` | Compute device: `auto`, `cpu`, or `cuda` | `auto` |
+This project was written in Python and uses TensorFlow in **compatibility mode** (`tensorflow.compat.v1`).
 
-Example:
+Recommended setup:
+
+- Python 3.10 or 3.11
+- NumPy
+- SciPy
+- Matplotlib
+- TensorFlow 2.x (using `compat.v1`)
+
+### 3.2 Install Dependencies
+
+Create a virtual environment if desired:
 
 ```bash
-python exercise_2_7_channel_estimation.py \
-  --epochs 20 \
-  --train-samples 10000 \
-  --test-samples 3000 \
-  --device cuda
+python -m venv venv
+source venv/bin/activate        # Linux / macOS
 ```
+
+On Windows PowerShell:
+
+```powershell
+python -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+Install required packages:
+
+```bash
+pip install numpy scipy matplotlib tensorflow
+```
+
+> If TensorFlow installation depends on your platform/CPU/GPU, choose the version suitable for your system.
 
 ---
 
-## Code Structure
+## 4. How to Run
 
-The script is organized into the following parts:
+The main script is `main.py`. You control the experiment by editing three parameters near the top of the file:
 
-### 1. Configuration
-Defines simulation parameters in the `SimConfig` dataclass.
+```python
+ce_type = 'mmse'   # 'ls', 'mmse', or 'dnn'
+test_ce = True     # False: train DNN, True: evaluate estimator
+CP_flag = False    # True: with CP, False: CP-free
+```
 
-### 2. Modulation
-Implements:
-- QPSK symbol generation for pilots
-- 64-QAM symbol generation for data
+### 4.1 Important Note for DNN Training
 
-### 3. Channel Model and OFDM
-Implements:
-- multipath Rayleigh channel generation
-- exponential power delay profile
-- OFDM modulation/demodulation
+Before training the DNN, create the checkpoint folder manually if it does not already exist:
+
+```bash
+mkdir dnn_ce
+```
+
+On Windows PowerShell:
+
+```powershell
+mkdir dnn_ce
+```
+
+If `dnn_ce/` does not exist, saving the `.npz` checkpoint files will fail.
+
+---
+
+### 4.2 Run LMMSE (with CP)
+
+Edit `main.py`:
+
+```python
+ce_type = 'mmse'
+test_ce = True
+CP_flag = True
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+This generates:
+
+- `MSE_mmse_4QAM.mat`
+
+---
+
+### 4.3 Run LMMSE (without CP)
+
+Edit `main.py`:
+
+```python
+ce_type = 'mmse'
+test_ce = True
+CP_flag = False
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+This generates:
+
+- `MSE_mmse_4QAM_CP_FREE.mat`
+
+---
+
+### 4.4 Train DNN (with CP)
+
+Edit `main.py`:
+
+```python
+ce_type = 'dnn'
+test_ce = False
+CP_flag = True
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+This trains the DNN for each SNR point and saves checkpoints under `dnn_ce/`.
+
+---
+
+### 4.5 Evaluate DNN (with CP)
+
+Edit `main.py`:
+
+```python
+ce_type = 'dnn'
+test_ce = True
+CP_flag = True
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+This generates:
+
+- `MSE_dnn_4QAM.mat`
+
+---
+
+### 4.6 Train and Evaluate DNN (without CP)
+
+For training:
+
+```python
+ce_type = 'dnn'
+test_ce = False
+CP_flag = False
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+Then evaluate using:
+
+```python
+ce_type = 'dnn'
+test_ce = True
+CP_flag = False
+```
+
+Run:
+
+```bash
+python main.py
+```
+
+This generates:
+
+- `MSE_dnn_4QAM_CP_FREE.mat`
+
+---
+
+## 5. Plotting the Results
+
+Use `plot_results.py` to visualize the saved `.mat` files:
+
+```bash
+python plot_results.py --dir . --show
+```
+
+To save the figure without displaying it:
+
+```bash
+python plot_results.py --dir .
+```
+
+Default output:
+
+- `figure_2_9_reproduced.png`
+
+The plot script automatically searches for the following files if they exist:
+
+- `MSE_dnn_4QAM.mat`
+- `MSE_dnn_4QAM_CP_FREE.mat`
+- `MSE_mmse_4QAM.mat`
+- `MSE_mmse_4QAM_CP_FREE.mat`
+- `MSE_ls_4QAM.mat`
+- `MSE_ls_4QAM_CP_FREE.mat`
+
+---
+
+## 6. Communication System Background
+
+### 6.1 Why OFDM?
+
+Orthogonal frequency-division multiplexing (OFDM) divides the transmission bandwidth into many orthogonal subcarriers. For a frequency-selective channel, OFDM simplifies equalization because each subcarrier can be modeled independently in the frequency domain when CP is present.
+
+With CP, the received signal on the `k`-th subcarrier can be approximated as:
+
+\[
+Y[k] = X[k]H[k] + Z[k]
+\]
+
+where:
+
+- `X[k]` is the transmitted symbol,
+- `H[k]` is the channel response,
+- `Z[k]` is noise.
+
+This model makes channel estimation straightforward.
+
+### 6.2 Why Channel Estimation?
+
+The receiver must estimate the channel `H[k]` in order to equalize the received data and recover the transmitted symbols correctly.
+
+The first OFDM symbol in this project is a **pilot symbol**, meaning the receiver already knows what was transmitted. By comparing transmitted and received pilots, the channel can be estimated.
+
+### 6.3 LS and LMMSE
+
+- **LS (Least Squares)** directly estimates the channel as:
+
+\[
+\hat{H}_{LS}[k] = \frac{Y[k]}{X[k]}
+\]
+
+- **LMMSE (Linear Minimum Mean Square Error)** improves upon LS by using channel statistics and noise variance. It generally performs better when the system assumptions are valid.
+
+### 6.4 Why CP Removal Matters
+
+When CP is removed, the neat circular-convolution model of OFDM breaks down. The received signal is affected by:
+
+- **ISI** (inter-symbol interference)
+- **ICI** (inter-carrier interference)
+
+This creates a mismatch between the signal model assumed by LMMSE and the actual received signal. A DNN estimator can still learn a useful nonlinear mapping from the received pilot observations to the true channel, which is why it is often more robust in the CP-free setting.
+
+---
+
+## 7. Code Explanation
+
+### `main.py`
+
+This is the main experiment script.
+
+Responsibilities:
+
+- defines the SNR sweep (`5, 10, ..., 40 dB`)
+- chooses the estimator type (`ls`, `mmse`, `dnn`)
+- chooses CP or CP-free configuration
+- trains the DNN when `test_ce = False`
+- evaluates MSE when `test_ce = True`
+- saves results to `.mat` files for plotting
+
+### `tools/networks.py`
+
+This file defines the DNN channel estimator.
+
+Model summary:
+
+- input: real/imaginary parts of received pilot and transmitted pilot
+- architecture: fully connected DNN with two hidden layers
+- activations: ReLU
+- output: real/imaginary parts of the estimated 64-subcarrier channel
+- loss: mean square error
+- optimizer: Adam
+
+### `tools/raputil.py`
+
+This is the core communication-system utility file.
+
+Key functions:
+
+- modulation / demodulation for QPSK, 16-QAM, and 64-QAM
+- OFDM IFFT/FFT processing
 - CP insertion and removal
-- no-CP transmission for ISI demonstration
+- channel convolution and AWGN addition
+- LS channel estimation
+- LMMSE channel estimation
+- sample generation for DNN training and validation
+- MSE evaluation for different channel estimators
 
-### 4. Dataset Generation
-Generates:
-- DNN input features: real/imaginary parts of received and transmitted pilots
-- labels: real/imaginary parts of the true frequency-domain channel
+This file also contains the CP-free simulation logic.
 
-### 5. LMMSE Estimator
-Computes:
-- LS estimate from pilots
-- covariance-based LMMSE refinement
+### `tools/train.py`
 
-### 6. DNN Estimator
-Uses a multilayer perceptron with:
-- input dimension: `4K`
-- output dimension: `2K`
-- two hidden layers
-- ReLU activations
+Provides helper functions to:
 
-### 7. Evaluation
-Computes average MSE over the test set for:
-- DNN
-- LMMSE
+- save DNN weights to `.npz`
+- restore saved model parameters
 
-### 8. Plotting and Saving
-Generates the final comparison figure and saves the experiment results.
+### `plot_results.py`
+
+Reads the saved `.mat` files and converts linear-scale MSE into dB before plotting.
 
 ---
 
-## DNN Input and Output Format
+## 8. Dataset Handling
 
-For each sample:
+The code first attempts to load the original channel datasets:
 
-### Input
-The DNN input is formed by concatenating:
-- real part of received pilot vector `Y_pilot`
-- imaginary part of received pilot vector `Y_pilot`
-- real part of transmitted pilot vector `X_pilot`
-- imaginary part of transmitted pilot vector `X_pilot`
+- `tools/channel_train.npy`
+- `tools/channel_test.npy`
 
-So the total input dimension is:
+If these files are not found, the implementation automatically falls back to **synthetic Rayleigh fading channels** generated inside `tools/raputil.py`.
 
-```text
-4 × K = 256
-```
-
-### Output
-The DNN predicts the full frequency-domain channel:
-- real part of `H`
-- imaginary part of `H`
-
-So the output dimension is:
-
-```text
-2 × K = 128
-```
+This allows the full pipeline to run even when the original dataset files are unavailable.
 
 ---
 
-## Expected Behavior
+## 9. Experimental Results and Analysis
 
-Typical trends you should observe:
+The final results included in this repository show the following trends.
 
-- **With CP:**
-  - DNN and LMMSE should have similar performance.
-- **Without CP:**
-  - LMMSE should degrade more significantly due to ISI.
-  - DNN is usually more robust because it learns directly from distorted pilot observations.
+### 9.1 With CP
 
-If the reproduced curve is noisy or not close enough to the reference figure, try increasing:
+Representative frequency-domain MSE (dB):
 
-- `--train-samples`
-- `--test-samples`
-- `--epochs`
+| SNR (dB) | DNN | LMMSE |
+|---|---:|---:|
+| 5  | -12.57 | -13.37 |
+| 10 | -16.64 | -17.62 |
+| 15 | -21.10 | -22.21 |
+| 20 | -25.58 | -27.02 |
+| 25 | -29.15 | -31.92 |
+| 30 | -32.75 | -36.91 |
+| 35 | -36.18 | -41.88 |
+| 40 | -37.13 | -46.91 |
+
+**Observation:**
+
+- Both methods improve as SNR increases.
+- LMMSE performs very strongly when CP is present because its underlying linear model is valid.
+- The DNN also achieves good performance and follows the same overall trend.
+
+### 9.2 Without CP
+
+Representative frequency-domain MSE (dB):
+
+| SNR (dB) | DNN | LMMSE |
+|---|---:|---:|
+| 5  | -12.01 | -11.91 |
+| 10 | -15.80 | -14.46 |
+| 15 | -19.89 | -15.94 |
+| 20 | -24.16 | -16.55 |
+| 25 | -27.87 | -16.45 |
+| 30 | -31.31 | -16.64 |
+| 35 | -33.43 | -16.88 |
+| 40 | -34.31 | -16.77 |
+
+**Observation:**
+
+- The DNN still improves as SNR increases, although it is slightly worse than the with-CP case.
+- LMMSE quickly reaches a performance floor and no longer improves much at high SNR.
+- This is a typical sign of **model mismatch** caused by CP removal, ISI, and ICI.
+
+### 9.3 Overall Conclusion
+
+The main conclusions are:
+
+1. **With CP**, both DNN and LMMSE work well because the OFDM frequency-domain model remains valid.
+2. **Without CP**, the channel estimation problem becomes harder because the received pilot no longer follows the simple per-subcarrier model.
+3. The **DNN-based estimator is more robust** in the CP-free case because it can learn a nonlinear mapping directly from distorted pilot observations.
+4. The **LMMSE estimator is more sensitive to model mismatch**, leading to a clear MSE floor in the CP-free setting.
+
+These results are consistent with the intended qualitative behavior of the reference experiment.
 
 ---
+
+## 10. Reproducibility Notes
+
+- Random seeds are set in `main.py` using NumPy and TensorFlow.
+- The exact numerical results may still vary slightly depending on:
+  - TensorFlow version
+  - Python version
+  - CPU/GPU implementation
+  - whether the official `.npy` datasets or synthetic channels are used
+
+---
+
+## 11. Acknowledgment
+
+This implementation is based on the structure of the original Exercise 2.7 repository from the wireless communication and machine learning course materials, with the missing components completed and additional utilities added for plotting and standalone execution.
+
+---
+
+## 12. Future Improvements
+
+Possible next steps include:
+
+- adding automatic directory creation for `dnn_ce/`
+- adding a single command to train and test all configurations in sequence
+- exposing more parameters via command-line arguments instead of editing `main.py`
+- adding BER evaluation in addition to MSE
+- supporting the official dataset directly in the repository
 
