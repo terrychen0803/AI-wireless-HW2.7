@@ -274,54 +274,8 @@ The plot script automatically searches for the following files if they exist:
 
 ---
 
-## 6. Communication System Background
 
-### 6.1 Why OFDM?
-
-Orthogonal frequency-division multiplexing (OFDM) divides the transmission bandwidth into many orthogonal subcarriers. For a frequency-selective channel, OFDM simplifies equalization because each subcarrier can be modeled independently in the frequency domain when CP is present.
-
-With CP, the received signal on the `k`-th subcarrier can be approximated as:
-
-\[
-Y[k] = X[k]H[k] + Z[k]
-\]
-
-where:
-
-- `X[k]` is the transmitted symbol,
-- `H[k]` is the channel response,
-- `Z[k]` is noise.
-
-This model makes channel estimation straightforward.
-
-### 6.2 Why Channel Estimation?
-
-The receiver must estimate the channel `H[k]` in order to equalize the received data and recover the transmitted symbols correctly.
-
-The first OFDM symbol in this project is a **pilot symbol**, meaning the receiver already knows what was transmitted. By comparing transmitted and received pilots, the channel can be estimated.
-
-### 6.3 LS and LMMSE
-
-- **LS (Least Squares)** directly estimates the channel as:
-
-\[
-\hat{H}_{LS}[k] = \frac{Y[k]}{X[k]}
-\]
-
-- **LMMSE (Linear Minimum Mean Square Error)** improves upon LS by using channel statistics and noise variance. It generally performs better when the system assumptions are valid.
-
-### 6.4 Why CP Removal Matters
-
-When CP is removed, the neat circular-convolution model of OFDM breaks down. The received signal is affected by:
-
-- **ISI** (inter-symbol interference)
-- **ICI** (inter-carrier interference)
-
-This creates a mismatch between the signal model assumed by LMMSE and the actual received signal. A DNN estimator can still learn a useful nonlinear mapping from the received pilot observations to the true channel, which is why it is often more robust in the CP-free setting.
-
----
-
-## 7. Code Explanation
+## 6. Code Explanation
 
 ### `main.py`
 
@@ -379,7 +333,7 @@ Reads the saved `.mat` files and converts linear-scale MSE into dB before plotti
 
 ---
 
-## 8. Dataset Handling
+## 7. Dataset Handling
 
 The code first attempts to load the original channel datasets:
 
@@ -392,11 +346,11 @@ This allows the full pipeline to run even when the original dataset files are un
 
 ---
 
-## 9. Experimental Results and Analysis
+## 8. Experimental Results and Analysis
 
 The final results included in this repository show the following trends.
 
-### 9.1 With CP
+### 8.1 With CP
 
 Representative frequency-domain MSE (dB):
 
@@ -417,7 +371,7 @@ Representative frequency-domain MSE (dB):
 - LMMSE performs very strongly when CP is present because its underlying linear model is valid.
 - The DNN also achieves good performance and follows the same overall trend.
 
-### 9.2 Without CP
+### 8.2 Without CP
 
 Representative frequency-domain MSE (dB):
 
@@ -438,7 +392,7 @@ Representative frequency-domain MSE (dB):
 - LMMSE quickly reaches a performance floor and no longer improves much at high SNR.
 - This is a typical sign of **model mismatch** caused by CP removal, ISI, and ICI.
 
-### 9.3 Overall Conclusion
+### 8.3 Overall Conclusion
 
 The main conclusions are:
 
@@ -450,31 +404,4 @@ The main conclusions are:
 These results are consistent with the intended qualitative behavior of the reference experiment.
 
 ---
-
-## 10. Reproducibility Notes
-
-- Random seeds are set in `main.py` using NumPy and TensorFlow.
-- The exact numerical results may still vary slightly depending on:
-  - TensorFlow version
-  - Python version
-  - CPU/GPU implementation
-  - whether the official `.npy` datasets or synthetic channels are used
-
----
-
-## 11. Acknowledgment
-
-This implementation is based on the structure of the original Exercise 2.7 repository from the wireless communication and machine learning course materials, with the missing components completed and additional utilities added for plotting and standalone execution.
-
----
-
-## 12. Future Improvements
-
-Possible next steps include:
-
-- adding automatic directory creation for `dnn_ce/`
-- adding a single command to train and test all configurations in sequence
-- exposing more parameters via command-line arguments instead of editing `main.py`
-- adding BER evaluation in addition to MSE
-- supporting the official dataset directly in the repository
 
