@@ -348,6 +348,8 @@ This allows the full pipeline to run even when the original dataset files are un
 
 ## 8. Experimental Results and Analysis
 
+![image](https://github.com/terrychen0803/AI-wireless-HW2.7/blob/main/figure_2_9_reproduced.png)
+
 The final results included in this repository show the following trends.
 
 ### 8.1 With CP
